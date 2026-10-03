@@ -26,4 +26,15 @@ describe('StrokeHistory', () => {
     expect(history.undo()[0].id).toBe(1);
     expect(history.canUndo).toBe(false);
   });
+
+  it('keeps snapshots independent from live edits', () => {
+    const history = new StrokeHistory();
+    const initial = [stroke(1), stroke(2)];
+    history.commit(initial);
+    initial.push(stroke(3));
+    initial[0].points.push({ x: 99, y: 99 });
+
+    expect(history.current).toHaveLength(2);
+    expect(history.current[0].points).toEqual([{ x: 1, y: 1 }]);
+  });
 });

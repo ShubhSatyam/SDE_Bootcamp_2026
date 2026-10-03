@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { interpretRecognition } from '../recognition/interpret';
+import { interpretRecognition, isSupportedMathExpression } from '../recognition/interpret';
 import type { RecognitionState, Stroke } from '../types/strokes';
-import { makeRecognitionImage } from '../canvas/paint';
 
 type WorkerMessage =
   | { type: 'progress'; message: string }
   | { type: 'ready' }
-  | { type: 'result'; id: number; text: string }
-  | { type: 'error'; message: string };
+  | { type: 'result'; id: number; text: string; confidence: number }
+  | { type: 'error'; id?: number; message: string };
+
+const minimumRecognitionConfidence = 0.35;
 
 export function useRecognition() {
   const [modelProgress, setModelProgress] = useState('Starting local recognition worker…');
@@ -45,8 +46,34 @@ export function useRecognition() {
       } else if (message.type === 'result') {
         if (message.id !== latestRequestRef.current) return;
         const interpreted = interpretRecognition(message.text);
-        setState({ status: 'ready', ...interpreted });
+        if (
+          message.confidence < minimumRecognitionConfidence
+          || !isSupportedMathExpression(interpreted.expression)
+          || interpreted.result === 'Invalid expression'
+        ) {
+          setState({
+            status: 'unrecognized',
+            expression: '',
+            result: '',
+            confidence: message.confidence,
+            message: message.confidence < minimumRecognitionConfidence
+              ? 'The handwriting was ambiguous. Try writing it more clearly.'
+              : 'Only numbers and +, −, ×, ÷, decimal points, and = are supported.',
+          });
+          return;
+        }
+        setState({ status: 'ready', ...interpreted, confidence: message.confidence });
       } else {
+        if (message.id !== undefined) {
+          if (message.id !== latestRequestRef.current) return;
+          setState({
+            status: 'unrecognized',
+            expression: '',
+            result: '',
+            message: 'Could not read the handwriting. Try writing it more clearly.',
+          });
+          return;
+        }
         setState({
           status: 'error',
           expression: '',
@@ -106,21 +133,9 @@ export function useRecognition() {
   const scheduleRecognition = useCallback((strokes: Stroke[], requestId: number) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
-      void (async () => {
-        try {
-          const image = await makeRecognitionImage(strokes);
-          if (image && workerRef.current && readyRef.current && requestId === latestRequestRef.current) {
-            workerRef.current.postMessage({ type: 'recognize', id: requestId, image });
-          }
-        } catch (error) {
-          setState({
-            status: 'error',
-            expression: '',
-            result: '',
-            message: error instanceof Error ? error.message : 'Could not prepare recognition image',
-          });
-        }
-      })();
+      if (workerRef.current && readyRef.current && requestId === latestRequestRef.current) {
+        workerRef.current.postMessage({ type: 'recognize', id: requestId, strokes });
+      }
     }, 500);
   }, []);
 

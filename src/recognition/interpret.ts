@@ -12,7 +12,13 @@ export function normalizeMathText(text: string): string {
     .replace(/[−–]/g, '-')
     .replace(/[×·]/g, '×')
     .replace(/[÷]/g, '÷')
+    .replace(/\*/g, '×')
+    .replace(/\//g, '÷')
     .replace(/\s+/g, '');
+}
+
+export function isSupportedMathExpression(expression: string): boolean {
+  return expression.length > 0 && /^[0-9+\-×÷.=]+$/.test(expression);
 }
 
 export function interpretRecognition(text: string): { expression: string; result: string } {

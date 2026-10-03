@@ -117,6 +117,9 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
     if (activePointerRef.current !== event.pointerId) return;
     activePointerRef.current = undefined;
     currentStrokeRef.current = undefined;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
     if (changedRef.current) onCommit([...workingStrokesRef.current]);
     changedRef.current = false;
   };

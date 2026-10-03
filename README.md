@@ -18,23 +18,25 @@ CalcInk is a private, offline-first handwriting calculator. Write an arithmetic 
 Pointer events
   → CSS-pixel stroke document
   → requestAnimationFrame canvas renderer (devicePixelRatio-aware)
-  → debounced 384×384 ink image
-  → Web Worker: Hugging Face Tokenizers.js + ONNX Runtime Web/WASM
+  → debounced stroke snapshot
+  → Web Worker: 384×384 preprocessing + Hugging Face Tokenizers.js + ONNX Runtime Web/WASM
   → Pix2Text-MFR LaTeX output → calculator tokens
   → tokenizer → recursive-descent evaluator
   → answer painted beside the handwritten expression
 ```
 
-Drawing and rendering stay on the main thread and do not wait for recognition. Model loading and inference happen in a worker; stale results are ignored. The parser never uses `eval()` or dynamic code execution. The bounded stroke-history document is the source of truth for rendering, editing, and recognition preprocessing.
+Drawing and rendering stay on the main thread and do not wait for recognition. Stroke rasterization, image normalization, model loading, token decoding, and inference happen in a worker; stale results are ignored. The parser never uses `eval()` or dynamic code execution. The bounded stroke-history document is the source of truth for rendering, editing, and worker-side recognition preprocessing.
 
 ## Recognition model and attribution
 
 - **Model:** [Pix2Text-MFR](https://huggingface.co/breezedeus/pix2text-mfr), pinned to revision [`bea257edb2653f2ae413b084f2ac0e8299d08df0`](https://huggingface.co/breezedeus/pix2text-mfr/tree/bea257edb2653f2ae413b084f2ac0e8299d08df0).
-- **Task and output:** handwritten/printed mathematical formula image → LaTeX text. The bundled model card documents its formula-recognition purpose and limitations.
-- **License:** the model repository identifies the model as MIT-licensed (`license:mit` in Hugging Face metadata). Pix2Text source: [breezedeus/Pix2Text](https://github.com/breezedeus/Pix2Text). Check those upstream terms before redistributing or modifying the weights.
-- **Architecture:** TrOCR vision encoder-decoder fine-tuned on formula images. The pinned configuration specifies a DeiT image encoder (384×384 input, 16-pixel patches, 12 layers, hidden size 384) and a six-layer TrOCR decoder (hidden size 256, 1,200-token vocabulary). Its image processor uses 384×384 RGB inputs and normalization values of 0.5.
-- **Browser format:** the pinned model revision publishes ONNX `encoder_model.onnx` and `decoder_model.onnx` exports, with tokenizer and processor configuration. CalcInk loads those exports directly with [ONNX Runtime Web](https://github.com/microsoft/onnxruntime), runs its encoder and autoregressive greedy decoder in the worker, and decodes output IDs with [Hugging Face Tokenizers.js](https://github.com/huggingface/tokenizers.js). The image is resized and normalized locally to the published processor's 384×384 RGB, mean-0.5/std-0.5 input.
-- **Why selected:** unlike a general handwritten-text recognizer, this is an existing formula-recognition model trained to emit math markup; its upstream ONNX exports and permissive published license make local browser inference feasible.
+- **Task and output:** the pinned model card describes mathematical formula recognition, including handwritten formulas, and emits LaTeX text. It also warns that results may be poor on images outside its formula training domain.
+- **License:** the pinned Hugging Face model metadata and model card both declare MIT (`license:mit`). Model source and weights: [breezedeus/pix2text-mfr](https://huggingface.co/breezedeus/pix2text-mfr/tree/bea257edb2653f2ae413b084f2ac0e8299d08df0); project source: [breezedeus/Pix2Text](https://github.com/breezedeus/Pix2Text).
+- **Architecture:** the pinned `config.json` identifies `VisionEncoderDecoderModel`: a DeiT image encoder (384×384 image size, 16×16 patches, 12 layers, hidden size 384) and a TrOCR decoder (6 layers, model width 256, vocabulary size 1,200). The model card says it was initialized from TrOCR and retrained on mathematical formula images.
+- **Input contract:** the pinned `preprocessor_config.json` specifies RGB, 384×384 resize, rescaling by 1/255, then per-channel mean 0.5 and standard deviation 0.5. CalcInk preserves the drawing aspect ratio inside a white square, renders ink dark and pixel erasures white, then sends normalized NCHW float32 `[1, 3, 384, 384]` values. This is the same numerical normalization as `(pixel / 127.5) - 1`.
+- **Output contract:** the pinned repository includes ONNX `encoder_model.onnx` and `decoder_model.onnx` plus tokenizer files. The encoder takes `pixel_values` and returns `last_hidden_state`; the decoder takes `input_ids` and `encoder_hidden_states` and returns per-position vocabulary `logits`. Worker-side greedy autoregressive decoding starts from the configured decoder-start token and stops at EOS (or the configured 512-token generation ceiling). Token IDs are decoded with the bundled tokenizer into the model's LaTeX text output.
+- **Token and confidence handling:** the postprocessor maps the model's `\times`/`\cdot`, `\div`, and `\minus` spellings to `×`, `÷`, and `-`, then accepts only `0–9`, `+`, `-`, `×`, `÷`, `.`, and `=`. Unsupported markup or invalid expressions fail safely without showing an answer. The worker reports the mean softmax probability of its selected output tokens; it is a model-score heuristic, **not a calibrated probability of correctness**. Results below the conservative 0.35 heuristic cutoff are withheld and the user is prompted to rewrite the expression.
+- **Offline/browser suitability:** this exact revision publishes the two ONNX graph files and tokenizer/processor metadata, so it runs with ONNX Runtime Web's WASM execution provider. CalcInk bundles these assets and the runtime locally; all preprocessing and inference execute in a Web Worker. Runtime model, tokenizer, and WASM loads are same-origin local assets; there are no runtime cloud/API requests.
 
 The two ONNX files (about 118 MB total) and tokenizer/processor metadata are checked into `public/models/pix2text-mfr/`. The WASM runtime is bundled from the pinned npm dependency into the production assets and precached by the service worker. `npm run download:model` can restore the model files from their pinned upstream revision and verifies the ONNX SHA-256 checksums. Inference and tokenizer file access use only these local assets; there are no cloud APIs, remote model calls, or CDN requests.
 
@@ -43,6 +45,48 @@ The two ONNX files (about 118 MB total) and tokenizer/processor metadata are che
 CalcInk is a static app. On the first online visit, wait for the service worker to finish caching the app and model, and for the local model status to become ready. The production build generates a precache manifest containing the complete app, ONNX weights, and WASM runtime. Subsequent visits can start and calculate without a network connection, subject to browser storage quota and service-worker support. Serve the app over HTTPS (or localhost); opening `index.html` as a `file://` URL does not enable workers or service workers.
 
 Handwriting is kept in memory and is not uploaded or persisted. Reloading the page clears the current sheet.
+
+### Network dependency audit
+
+The app has no external runtime network dependency:
+
+- Local ONNX model files live in `public/models/pix2text-mfr/` and are loaded from same-origin URLs only.
+- The tokenizer metadata and generation config are fetched from the local `public/models/...` directory at runtime.
+- ONNX Runtime Web's WASM runtime is bundled from the npm dependency and precached by the generated service worker.
+- There are no API calls, no remote configuration fetches, and no third-party CDN scripts or fonts.
+- The app uses a system font stack only; there are no `@import` rules or remote web-font requests.
+- The service worker is necessary for reliable offline reload because the app's model and runtime assets are large and must be cached first.
+
+### Exact offline verification steps
+
+1. Install dependencies and build the production bundle:
+
+   ```sh
+   npm install
+   npm run build
+   ```
+
+2. Serve the built app locally:
+
+   ```sh
+   npm run preview -- --host 0.0.0.0 --port 4173
+   ```
+
+3. Open `http://localhost:4173/` in a browser and wait for the app to show `Ready, works offline` in the status banner.
+
+4. Open DevTools → Application/Storage → Service Workers and verify the service worker is active for the origin.
+
+5. In DevTools → Network, turn on `Offline` mode and disable cache if desired. Refresh the page once.
+
+6. Confirm all of the following:
+   - the app still renders the interface
+   - no failed fetches appear for the app shell or model assets
+   - the model status remains ready
+   - drawing and recognition continue to work without a network connection
+
+7. Optional browser-level check: while offline, open the console and confirm `navigator.serviceWorker.controller !== null` and that the only fetches are same-origin cached responses.
+
+This verification is only valid on an HTTP localhost or HTTPS deployment; direct `file://` loading is not an offline-supported browser environment for service workers.
 
 ## Setup and development
 
@@ -61,13 +105,13 @@ npm run download:model
 
 ## Scripts
 
-| Script | Purpose |
-| --- | --- |
-| `npm run dev` | Start the Vite development server. |
-| `npm test` | Run unit tests for parsing/evaluation, recognition output handling, coordinates, stroke erasure geometry, and history. |
-| `npm run build` | Type-check, create the production bundle, and generate the offline precache service worker. |
-| `npm run preview` | Serve the production build locally for deployment smoke checks. |
-| `npm run download:model` | Download the pinned MIT-tagged model and copy local ONNX Runtime Web WASM files. |
+| Script                   | Purpose                                                                                                                |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `npm run dev`            | Start the Vite development server.                                                                                     |
+| `npm test`               | Run unit tests for parsing/evaluation, recognition output handling, coordinates, stroke erasure geometry, and history. |
+| `npm run build`          | Type-check, create the production bundle, and generate the offline precache service worker.                            |
+| `npm run preview`        | Serve the production build locally for deployment smoke checks.                                                        |
+| `npm run download:model` | Download the pinned MIT-tagged model and copy local ONNX Runtime Web WASM files.                                       |
 
 ## Production build and deployment
 
@@ -86,7 +130,7 @@ The Vitest suite covers tokenizer output, precedence, decimals, unary negatives,
 ## Known limitations
 
 - Recognition is best-effort: handwriting style, symbol spacing, image aspect ratio, and ambiguous marks can cause misrecognition. Review the displayed transcription before relying on a result.
-- This MFR model generates LaTeX rather than calibrated per-symbol confidence scores; CalcInk does not claim a confidence metric.
+- The reported sequence score is derived from decoder logits and is not calibrated; ambiguous or out-of-vocabulary expressions are withheld.
 - The model and WASM assets are large and require a successful initial download and enough browser storage for offline caching.
 - Service workers require a secure context and may be restricted by private-browsing/storage policies.
 - The current parser intentionally supports arithmetic only; unsupported recognized markup is reported as an invalid expression, not executed.

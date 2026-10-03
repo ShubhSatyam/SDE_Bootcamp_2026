@@ -10,5 +10,6 @@ export type Stroke = {
 export type Tool = 'pen' | 'stroke-eraser' | 'pixel-eraser';
 
 export type RecognitionState =
-  | { status: 'idle' | 'loading' | 'recognizing' | 'ready'; expression: string; result: string }
-  | { status: 'error'; expression: string; result: string; message: string };
+  | { status: 'idle' | 'loading' | 'recognizing' | 'ready'; expression: string; result: string; confidence?: number }
+  | { status: 'unrecognized'; expression: ''; result: ''; confidence?: number; message: string }
+  | { status: 'error'; expression: string; result: string; confidence?: number; message: string };

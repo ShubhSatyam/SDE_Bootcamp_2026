@@ -66,12 +66,15 @@ function App() {
     ? 'Preparing the local model'
     : recognition.status === 'recognizing'
       ? 'Reading your ink'
+      : recognition.status === 'unrecognized'
+        ? 'Could not read the handwriting'
       : recognition.status === 'error'
         ? 'Recognition needs attention'
         : online
           ? 'Ready, works offline'
           : 'Offline and ready';
   const hasExpression = Boolean(recognition.expression);
+  const confidencePercent = recognition.confidence === undefined ? null : Math.round(recognition.confidence * 100);
 
   return (
     <main className="app-shell">
@@ -151,13 +154,22 @@ function App() {
               ? modelProgress
               : recognition.status === 'recognizing'
                 ? 'Reading your handwriting…'
+                : recognition.status === 'unrecognized'
+                  ? recognition.message
                 : recognition.status === 'error'
                   ? 'Local recognition could not start.'
                   : hasExpression
-                    ? `Read as ${recognition.expression}`
+                    ? `Read as ${recognition.expression}${confidencePercent === null ? '' : ` · ${confidencePercent}% confidence`}`
                     : 'Ready for your next thought'}</span>
           </div>
-          <div className="shortcut-hint"><kbd>⌘</kbd><kbd>Z</kbd> to undo <span>·</span> <kbd>E</kbd> stroke eraser</div>
+          <div className="workspace-meta">
+            {hasExpression && (
+              <span className="result-chip" aria-label={`Current expression result ${recognition.result}`}>
+                {recognition.result}
+              </span>
+            )}
+            <div className="shortcut-hint"><kbd>⌘</kbd><kbd>Z</kbd> to undo <span>·</span> <kbd>E</kbd> stroke eraser</div>
+          </div>
         </div>
         {recognition.status === 'error' && (
           <p className="error-detail" role="alert">
