@@ -62,22 +62,42 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
     };
   }, [requestDraw]);
 
+  useEffect(() => {
+    const handleGlobalPointerUp = () => {
+      if (activePointerRef.current !== undefined) {
+        activePointerRef.current = undefined;
+        currentStrokeRef.current = undefined;
+        if (changedRef.current) {
+          onCommit([...workingStrokesRef.current]);
+          changedRef.current = false;
+        }
+      }
+    };
+    window.addEventListener('pointerup', handleGlobalPointerUp);
+    window.addEventListener('pointercancel', handleGlobalPointerUp);
+    return () => {
+      window.removeEventListener('pointerup', handleGlobalPointerUp);
+      window.removeEventListener('pointercancel', handleGlobalPointerUp);
+    };
+  }, [onCommit]);
+
   const pointFromEvent = (event: PointerEvent<HTMLCanvasElement>): Point => {
     const canvas = canvasRef.current;
     const rect = canvas ? canvas.getBoundingClientRect() : event.currentTarget.getBoundingClientRect();
-    const point = clientToCanvasPoint(
-      event.clientX,
-      event.clientY,
-      rect,
-      canvas ? canvas.clientWidth : undefined,
-      canvas ? canvas.clientHeight : undefined,
-    );
+    const point = clientToCanvasPoint(event.clientX, event.clientY, rect);
     return event.pressure > 0 ? { ...point, pressure: event.pressure } : point;
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (activePointerRef.current !== undefined || event.button !== 0) return;
+    if (event.button !== 0) return;
     event.preventDefault();
+
+    // If a previous stroke was not properly finished, commit it now
+    if (activePointerRef.current !== undefined && changedRef.current) {
+      onCommit([...workingStrokesRef.current]);
+      changedRef.current = false;
+    }
+
     try {
       event.currentTarget.setPointerCapture(event.pointerId);
     } catch {
@@ -101,6 +121,7 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
       workingStrokesRef.current = [...workingStrokesRef.current, stroke];
       changedRef.current = true;
     }
+    if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current);
     requestDraw();
   };
 
@@ -116,11 +137,9 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
     const samples = coalesced && coalesced.length > 0 ? coalesced : [native];
     const canvas = canvasRef.current;
     const rect = canvas ? canvas.getBoundingClientRect() : event.currentTarget.getBoundingClientRect();
-    const cWidth = canvas ? canvas.clientWidth : undefined;
-    const cHeight = canvas ? canvas.clientHeight : undefined;
 
     for (const sample of samples) {
-      const point = clientToCanvasPoint(sample.clientX, sample.clientY, rect, cWidth, cHeight);
+      const point = clientToCanvasPoint(sample.clientX, sample.clientY, rect);
       if (tool === 'stroke-eraser') {
         const next = workingStrokesRef.current.filter((stroke) => !isPointNearStroke(point, stroke, strokeWidth * 2));
         if (next.length !== workingStrokesRef.current.length) {
@@ -132,11 +151,12 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
         currentStrokeRef.current.points.push(nextPoint);
       }
     }
+    if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current);
     requestDraw();
   };
 
   const finishPointer = (event: PointerEvent<HTMLCanvasElement>) => {
-    if (activePointerRef.current !== event.pointerId) return;
+    if (activePointerRef.current === undefined) return;
     activePointerRef.current = undefined;
     currentStrokeRef.current = undefined;
     try {

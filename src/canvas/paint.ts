@@ -62,7 +62,6 @@ export function renderCanvas(
   const width = canvas.clientWidth || (canvas.width / dpr);
   const height = canvas.clientHeight || (canvas.height / dpr);
 
-  context.save();
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -80,5 +79,4 @@ export function renderCanvas(
     context.fillStyle = answer === 'Invalid expression' ? '#a36a55' : '#bd6646';
     context.fillText(answer, left, baseline);
   }
-  context.restore();
 }

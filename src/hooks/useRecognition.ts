@@ -89,7 +89,7 @@ export function useRecognition() {
 
     void (async () => {
       try {
-        if ('serviceWorker' in navigator) {
+        if ('serviceWorker' in navigator && !import.meta.env.DEV) {
           await navigator.serviceWorker.register('/sw.js');
           await navigator.serviceWorker.ready;
           if (!navigator.serviceWorker.controller) {
