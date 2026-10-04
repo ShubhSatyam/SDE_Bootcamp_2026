@@ -89,7 +89,16 @@ export function useRecognition() {
 
     void (async () => {
       try {
-        if ('serviceWorker' in navigator && !import.meta.env.DEV) {
+        if (import.meta.env.DEV && 'serviceWorker' in navigator) {
+          // Never let the offline cache serve Vite's changing development
+          // modules. Remove a previous dev registration before loading them.
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(registrations.map((registration) => registration.unregister()));
+          const cacheNames = await caches.keys();
+          await Promise.all(cacheNames
+            .filter((name) => name.startsWith('calcink-'))
+            .map((name) => caches.delete(name)));
+        } else if ('serviceWorker' in navigator) {
           await navigator.serviceWorker.register('/sw.js');
           await navigator.serviceWorker.ready;
           if (!navigator.serviceWorker.controller) {

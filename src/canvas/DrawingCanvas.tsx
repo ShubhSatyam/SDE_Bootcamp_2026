@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
 import { configureCanvasSize, clientToCanvasPoint } from './coordinates';
 import { isPointNearStroke } from './geometry';
@@ -23,6 +23,7 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
   const currentStrokeRef = useRef<Stroke>();
   const answerRef = useRef(answer);
   const changedRef = useRef(false);
+  const [paperSize, setPaperSize] = useState({ width: 0, height: 0 });
 
   const requestDraw = useCallback(() => {
     if (frameRef.current !== undefined) return;
@@ -54,6 +55,7 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
     if (!host || !canvas) return;
     const resize = () => {
       const bounds = host.getBoundingClientRect();
+      setPaperSize({ width: bounds.width, height: bounds.height });
       if (bounds.width > 0 && bounds.height > 0) {
         configureCanvasSize(canvas, bounds.width, bounds.height, window.devicePixelRatio || 1);
         if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current);
@@ -68,7 +70,7 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
       window.removeEventListener('resize', resize);
       if (frameRef.current !== undefined) cancelAnimationFrame(frameRef.current);
     };
-  }, []);
+  }, [requestDraw]);
 
   useEffect(() => {
     const handleGlobalPointerUp = () => {
@@ -145,7 +147,6 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
     const samples = coalesced && coalesced.length > 0 ? coalesced : [native];
     const canvas = canvasRef.current;
     const rect = canvas ? canvas.getBoundingClientRect() : event.currentTarget.getBoundingClientRect();
-
     for (const sample of samples) {
       const point = clientToCanvasPoint(sample.clientX, sample.clientY, rect);
       if (tool === 'stroke-eraser') {
@@ -191,7 +192,17 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
         onPointerCancel={finishPointer}
         onLostPointerCapture={finishPointer}
       />
-      {strokes.length === 0 && <div className="paper-hint">Start writing here<span>Try a calculation like 18 + 4 × 3 =</span></div>}
+      <svg className="ink-preview" viewBox={`0 0 ${paperSize.width} ${paperSize.height}`} aria-hidden="true">
+        {strokes.map((stroke) => {
+          const first = stroke.points[0];
+          if (!first) return null;
+          const path = stroke.points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+          const eraser = stroke.mode === 'pixel-eraser';
+          return stroke.points.length === 1
+            ? <circle key={stroke.id} cx={first.x} cy={first.y} r={(eraser ? stroke.width * 3 : stroke.width) / 2} fill={eraser ? '#fffefa' : '#273b34'} />
+            : <path key={stroke.id} d={path} fill="none" stroke={eraser ? '#fffefa' : '#273b34'} strokeWidth={eraser ? stroke.width * 3 : stroke.width} strokeLinecap="round" strokeLinejoin="round" />;
+        })}
+      </svg>
     </div>
   );
 }

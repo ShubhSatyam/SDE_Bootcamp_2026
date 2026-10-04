@@ -58,14 +58,12 @@ export function renderCanvas(
 ): void {
   const context = canvas.getContext('2d');
   if (!context) return;
-  const dpr = window.devicePixelRatio || 1;
-  const width = canvas.clientWidth || (canvas.width / dpr);
-  const height = canvas.clientHeight || (canvas.height / dpr);
-
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  if (width === 0 || height === 0) return;
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.clearRect(0, 0, canvas.width, canvas.height);
-  context.setTransform(dpr, 0, 0, dpr, 0, 0);
-
+  context.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
   paintStrokes(context, strokes);
 
   const bounds = getInkBounds(strokes);

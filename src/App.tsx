@@ -12,6 +12,7 @@ function App() {
   const [tool, setTool] = useState<Tool>('pen');
   const [strokeWidth, setStrokeWidth] = useState(5);
   const [online, setOnline] = useState(navigator.onLine);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('calcink-theme') === 'dark');
   const { state: recognition, recognizeStrokes, modelProgress } = useRecognition();
 
   const syncHistoryState = useCallback(() => {
@@ -50,6 +51,11 @@ function App() {
       window.removeEventListener('offline', updateOnline);
     };
   }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = darkMode ? 'dark' : 'light';
+    localStorage.setItem('calcink-theme', darkMode ? 'dark' : 'light');
+  }, [darkMode]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -95,6 +101,17 @@ function App() {
           <span className="status-dot" />
           <span>{statusLabel}</span>
         </div>
+        <button
+          className="theme-toggle"
+          type="button"
+          aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          aria-pressed={darkMode}
+          title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+          onClick={() => setDarkMode((current) => !current)}
+        >
+          <span aria-hidden="true">{darkMode ? '☀' : '☾'}</span>
+          <span>{darkMode ? 'Light' : 'Dark'}</span>
+        </button>
       </header>
 
       <section className="welcome">
@@ -117,10 +134,10 @@ function App() {
             <button className={`tool-button ${tool === 'pen' ? 'selected' : ''}`} onClick={() => setTool('pen')} aria-pressed={tool === 'pen'} title="Pen">
               <span className="tool-symbol pen-symbol" aria-hidden="true">／</span><span>Write</span>
             </button>
-            <button className={`tool-button ${tool === 'stroke-eraser' ? 'selected' : ''}`} onClick={() => setTool('stroke-eraser')} aria-pressed={tool === 'stroke-eraser'} title="Erase whole strokes (E)">
-              <span className="tool-symbol eraser-symbol" aria-hidden="true">▱</span><span>Stroke</span>
+            <button className={`tool-button ${tool === 'stroke-eraser' ? 'selected' : ''}`} onClick={() => setTool('stroke-eraser')} aria-pressed={tool === 'stroke-eraser'} aria-label="Whole-stroke eraser" title="Erase a whole drawn mark (E)">
+              <span className="tool-symbol eraser-symbol" aria-hidden="true">▱</span><span>Whole stroke</span>
             </button>
-            <button className={`tool-button ${tool === 'pixel-eraser' ? 'selected' : ''}`} onClick={() => setTool('pixel-eraser')} aria-pressed={tool === 'pixel-eraser'} title="Erase ink pixels">
+            <button className={`tool-button ${tool === 'pixel-eraser' ? 'selected' : ''}`} onClick={() => setTool('pixel-eraser')} aria-pressed={tool === 'pixel-eraser'} aria-label="Pixel eraser" title="Erase only the ink under the pointer">
               <span className="tool-symbol pixel-symbol" aria-hidden="true">◌</span><span>Pixel</span>
             </button>
           </div>
@@ -143,15 +160,18 @@ function App() {
             <span aria-hidden="true">⌫</span> Clear
           </button>
         </div>
+        <p className="eraser-help">Whole stroke removes an entire mark. Pixel removes ink only where you drag.</p>
 
-        <DrawingCanvas
-          strokes={strokes}
-          answer={hasExpression ? recognition.result : ''}
-          recognizedExpression={recognition.expression}
-          tool={tool}
-          strokeWidth={strokeWidth}
-          onCommit={commitStrokes}
-        />
+        <div className="paper-scroll" aria-label="Scrollable writing area">
+          <DrawingCanvas
+            strokes={strokes}
+            answer={hasExpression ? recognition.result : ''}
+            recognizedExpression={recognition.expression}
+            tool={tool}
+            strokeWidth={strokeWidth}
+            onCommit={commitStrokes}
+          />
+        </div>
 
         <div className="workspace-footer">
           <div className="recognition-status" aria-live="polite">
