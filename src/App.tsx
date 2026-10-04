@@ -7,15 +7,23 @@ import type { Stroke, Tool } from './types/strokes';
 function App() {
   const historyRef = useRef(new StrokeHistory());
   const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
   const [tool, setTool] = useState<Tool>('pen');
   const [strokeWidth, setStrokeWidth] = useState(5);
   const [online, setOnline] = useState(navigator.onLine);
   const { state: recognition, recognizeStrokes, modelProgress } = useRecognition();
 
+  const syncHistoryState = useCallback(() => {
+    setCanUndo(historyRef.current.canUndo);
+    setCanRedo(historyRef.current.canRedo);
+  }, []);
+
   const applyHistory = useCallback((next: Stroke[]) => {
     setStrokes(next);
+    syncHistoryState();
     recognizeStrokes(next);
-  }, [recognizeStrokes]);
+  }, [recognizeStrokes, syncHistoryState]);
 
   const commitStrokes = useCallback((next: Stroke[]) => {
     applyHistory(historyRef.current.commit(next));
@@ -118,10 +126,10 @@ function App() {
           </div>
           <span className="toolbar-divider" />
           <div className="history-tools">
-            <button className="icon-button" onClick={undo} disabled={!historyRef.current.canUndo} aria-label="Undo" title="Undo (Ctrl+Z)">
+            <button className="icon-button" onClick={undo} disabled={!canUndo} aria-label="Undo" title="Undo (Ctrl+Z)">
               <span aria-hidden="true">↶</span>
             </button>
-            <button className="icon-button" onClick={redo} disabled={!historyRef.current.canRedo} aria-label="Redo" title="Redo (Ctrl+Shift+Z)">
+            <button className="icon-button" onClick={redo} disabled={!canRedo} aria-label="Redo" title="Redo (Ctrl+Shift+Z)">
               <span aria-hidden="true">↷</span>
             </button>
           </div>
