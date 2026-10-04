@@ -1,14 +1,28 @@
 import type { Point } from '../types/strokes';
 
-export type CanvasRect = Pick<DOMRect, 'left' | 'top'>;
+export type CanvasRect = Pick<DOMRect, 'left' | 'top'> & Partial<Pick<DOMRect, 'width' | 'height'>>;
 
 export function getCanvasBackingSize(width: number, height: number, pixelRatio: number) {
   const ratio = Math.max(1, pixelRatio);
   return { width: Math.round(width * ratio), height: Math.round(height * ratio), ratio };
 }
 
-export function clientToCanvasPoint(clientX: number, clientY: number, rect: CanvasRect): Point {
-  return { x: clientX - rect.left, y: clientY - rect.top };
+export function clientToCanvasPoint(
+  clientX: number,
+  clientY: number,
+  rect: CanvasRect,
+  canvasWidth?: number,
+  canvasHeight?: number,
+): Point {
+  let x = clientX - rect.left;
+  let y = clientY - rect.top;
+  if (canvasWidth && rect.width && rect.width > 0) {
+    x = (x / rect.width) * canvasWidth;
+  }
+  if (canvasHeight && rect.height && rect.height > 0) {
+    y = (y / rect.height) * canvasHeight;
+  }
+  return { x, y };
 }
 
 export function configureCanvasSize(

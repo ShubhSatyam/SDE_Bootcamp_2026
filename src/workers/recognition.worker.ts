@@ -68,17 +68,31 @@ function makeRecognitionTensor(strokes: Stroke[]): ort.Tensor {
     context.globalCompositeOperation = 'source-over';
     context.strokeStyle = stroke.mode === 'pixel-eraser' ? '#ffffff' : '#171717';
     context.fillStyle = context.strokeStyle;
-    context.lineWidth = stroke.mode === 'pixel-eraser' ? stroke.width * 3 : stroke.width;
-    context.beginPath();
-    context.moveTo(stroke.points[0].x, stroke.points[0].y);
+    const effectiveWidth = stroke.mode === 'pixel-eraser' ? stroke.width * 3 : stroke.width;
+    context.lineWidth = effectiveWidth;
     if (stroke.points.length === 1) {
-      context.lineTo(stroke.points[0].x + 0.01, stroke.points[0].y + 0.01);
+      context.beginPath();
+      context.arc(stroke.points[0].x, stroke.points[0].y, effectiveWidth / 2, 0, Math.PI * 2);
+      context.fill();
+    } else if (stroke.points.length === 2) {
+      context.beginPath();
+      context.moveTo(stroke.points[0].x, stroke.points[0].y);
+      context.lineTo(stroke.points[1].x, stroke.points[1].y);
+      context.stroke();
     } else {
-      for (let index = 1; index < stroke.points.length; index += 1) {
-        context.lineTo(stroke.points[index].x, stroke.points[index].y);
+      context.beginPath();
+      context.moveTo(stroke.points[0].x, stroke.points[0].y);
+      for (let index = 1; index < stroke.points.length - 1; index += 1) {
+        const p1 = stroke.points[index];
+        const p2 = stroke.points[index + 1];
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
+        context.quadraticCurveTo(p1.x, p1.y, midX, midY);
       }
+      const lastPoint = stroke.points[stroke.points.length - 1];
+      context.lineTo(lastPoint.x, lastPoint.y);
+      context.stroke();
     }
-    context.stroke();
   }
   context.restore();
 
