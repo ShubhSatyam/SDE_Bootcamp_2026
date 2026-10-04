@@ -1,31 +1,17 @@
-const CACHE_NAME = 'calcink-runtime-v1';
-
+// Service Worker for CalcInk
 self.addEventListener('install', (event) => {
   event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    (async () => {
-      const names = await caches.keys();
-      await Promise.all(names.filter((name) => name.startsWith('calcink-') && name !== CACHE_NAME).map((name) => caches.delete(name)));
-      await self.clients.claim();
-    })(),
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).then(() => self.clients.claim())
   );
 });
 
-self.addEventListener('fetch', (event) => {
-  const request = event.request;
-  if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
-
-  event.respondWith(
-    (async () => {
-      const cache = await caches.open(CACHE_NAME);
-      const cached = await cache.match(request);
-      if (cached) return cached;
-      const response = await fetch(request);
-      if (response.ok) event.waitUntil(cache.put(request, response.clone()));
-      return response;
-    })(),
-  );
+self.addEventListener('fetch', () => {
+  // During local development, bypass service worker completely so HMR and updates always load live code
+  if (self.location.hostname === 'localhost' || self.location.hostname === '127.0.0.1') {
+    return;
+  }
 });
