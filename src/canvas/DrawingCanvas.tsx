@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 import type { PointerEvent } from 'react';
 import { configureCanvasSize, clientToCanvasPoint } from './coordinates';
 import { isPointNearStroke } from './geometry';
@@ -32,15 +32,21 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
     });
   }, []);
 
-  useEffect(() => {
+  // Synchronously update and render canvas whenever strokes or answer change (Clear, Undo, Redo)
+  useLayoutEffect(() => {
+    if (frameRef.current !== undefined) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = undefined;
+    }
     workingStrokesRef.current = strokes;
-    requestDraw();
-  }, [strokes, requestDraw]);
-
-  useEffect(() => {
     answerRef.current = answer;
-    requestDraw();
-  }, [answer, requestDraw]);
+    activePointerRef.current = undefined;
+    currentStrokeRef.current = undefined;
+    changedRef.current = false;
+    if (canvasRef.current) {
+      renderCanvas(canvasRef.current, strokes, answer);
+    }
+  }, [strokes, answer]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -48,8 +54,10 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
     if (!host || !canvas) return;
     const resize = () => {
       const bounds = host.getBoundingClientRect();
-      configureCanvasSize(canvas, bounds.width, bounds.height, window.devicePixelRatio || 1);
-      requestDraw();
+      if (bounds.width > 0 && bounds.height > 0) {
+        configureCanvasSize(canvas, bounds.width, bounds.height, window.devicePixelRatio || 1);
+        if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current);
+      }
     };
     const observer = new ResizeObserver(resize);
     observer.observe(host);
@@ -60,7 +68,7 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
       window.removeEventListener('resize', resize);
       if (frameRef.current !== undefined) cancelAnimationFrame(frameRef.current);
     };
-  }, [requestDraw]);
+  }, []);
 
   useEffect(() => {
     const handleGlobalPointerUp = () => {
