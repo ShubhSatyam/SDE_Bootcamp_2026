@@ -3,10 +3,10 @@ import { evaluateExpression } from '../math/evaluate';
 export function normalizeMathText(text: string): string {
   return text
     .replace(/\$\$?/g, '')
-    .replace(/\\(?:left|right)\b/g, '')
-    .replace(/\\(?:times|cdot)\b/g, '×')
-    .replace(/\\div\b/g, '÷')
-    .replace(/\\(?:minus)\b/g, '-')
+    .replace(/\\(?:left|right)(?![A-Za-z])/g, '')
+    .replace(/\\(?:times|cdot)(?![A-Za-z])/g, '×')
+    .replace(/\\div(?![A-Za-z])/g, '÷')
+    .replace(/\\minus(?![A-Za-z])/g, '-')
     .replace(/\\(?:,|;|!|quad|qquad)/g, '')
     .replace(/[{}]/g, '')
     .replace(/[−–]/g, '-')
@@ -18,7 +18,15 @@ export function normalizeMathText(text: string): string {
 }
 
 export function isSupportedMathExpression(expression: string): boolean {
-  return expression.length > 0 && /^[0-9+\-×÷.=]+$/.test(expression);
+  if (typeof expression !== 'string' || expression.length === 0) {
+    return false;
+  }
+
+  if (!/^[0-9+\-×÷().=]+$/.test(expression)) {
+    return false;
+  }
+
+  return evaluateExpression(expression).ok;
 }
 
 export function interpretRecognition(text: string): { expression: string; result: string } {

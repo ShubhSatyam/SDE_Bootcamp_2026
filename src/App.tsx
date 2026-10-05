@@ -83,6 +83,20 @@ function App() {
           : 'Offline and ready';
   const hasExpression = Boolean(recognition.expression);
   const confidencePercent = recognition.confidence === undefined ? null : Math.round(recognition.confidence * 100);
+  const notepadExpression = recognition.status === 'ready' && hasExpression
+    ? recognition.expression
+    : recognition.status === 'unrecognized'
+      ? 'Not readable yet'
+      : recognition.status === 'loading' || recognition.status === 'recognizing'
+        ? 'Reading…'
+        : 'Start writing';
+  const notepadAnswer = hasExpression
+    ? `${recognition.expression} = ${recognition.result}`
+    : recognition.status === 'unrecognized'
+      ? 'This part is unclear — try writing it more cleanly.'
+      : recognition.status === 'error'
+        ? 'Recognition is unavailable right now.'
+        : 'Write a calculation to see the answer here.';
 
   return (
     <main className="app-shell">
@@ -184,6 +198,27 @@ function App() {
             {recognition.message} Check that the local model assets finished loading, then reload CalcInk.
           </p>
         )}
+      </section>
+
+      <section className="recognition-notepad" aria-live="polite" aria-label="Recognized calculation note">
+        <div className="notepad-header">
+          <span className="notepad-pill">Live note</span>
+          <span className="notepad-status">{recognition.status === 'unrecognized' ? 'Needs a clearer stroke' : recognition.status === 'ready' && hasExpression ? 'Recognized' : 'Waiting for input'}</span>
+        </div>
+        <div className="notepad-grid" role="note">
+          <div className="notepad-line">
+            <span className="notepad-label">User note</span>
+            <span className={`notepad-expression ${recognition.status === 'unrecognized' ? 'unclear' : ''}`}>
+              {notepadExpression}
+            </span>
+          </div>
+          <div className="notepad-line">
+            <span className="notepad-label">Answer</span>
+            <span className={`notepad-answer ${hasExpression ? 'resolved' : ''}`}>
+              {notepadAnswer}
+            </span>
+          </div>
+        </div>
       </section>
 
       <footer className="page-footer">
