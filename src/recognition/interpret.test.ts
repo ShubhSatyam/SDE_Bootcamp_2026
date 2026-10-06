@@ -28,6 +28,8 @@ describe('recognition result handling', () => {
     expect(normalizeMathText('3 \\cdot 4 \\div 2 \\minus 1.5 =')).toBe('3×4÷2-1.5=');
     expect(isSupportedMathExpression('3×4÷2-1.5=')).toBe(true);
     expect(normalizeMathText('8 * 2 / 4')).toBe('8×2÷4');
+    expect(normalizeMathText('\\left(1+2\\right)\\times3')).toBe('(1+2)×3');
+    expect(isSupportedMathExpression('(1+2)×3')).toBe(true);
     expect(isSupportedMathExpression('\\frac{1}{2}')).toBe(false);
     expect(isSupportedMathExpression('')).toBe(false);
   });

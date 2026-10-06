@@ -58,7 +58,7 @@ export function useRecognition() {
             confidence: message.confidence,
             message: message.confidence < minimumRecognitionConfidence
               ? 'The handwriting was ambiguous. Try writing it more clearly.'
-              : 'Only numbers and +, −, ×, ÷, decimal points, and = are supported.',
+              : 'Only numbers, parentheses, and +, −, ×, ÷, decimal points, and = are supported.',
           });
           return;
         }
