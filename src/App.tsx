@@ -176,7 +176,7 @@ function App() {
         </div>
         <p className="eraser-help">Whole stroke removes an entire mark. Pixel removes ink only where you drag.</p>
 
-        <div className="paper-scroll" aria-label="Scrollable writing area">
+        <div className="paper-scroll" aria-label="Writing area">
           <DrawingCanvas
             strokes={strokes}
             answer={hasExpression ? recognition.result : ''}
