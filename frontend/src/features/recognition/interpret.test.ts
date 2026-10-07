@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { interpretRecognition, isSupportedMathExpression, normalizeMathText } from './interpret';
+import { formatCalculationAnswer, interpretRecognition, isSupportedMathExpression, normalizeMathText } from './interpret';
 
 describe('recognition result handling', () => {
   it('converts model LaTeX output to calculator operators and evaluates it', () => {
@@ -32,5 +32,10 @@ describe('recognition result handling', () => {
     expect(isSupportedMathExpression('(1+2)×3')).toBe(true);
     expect(isSupportedMathExpression('\\frac{1}{2}')).toBe(false);
     expect(isSupportedMathExpression('')).toBe(false);
+  });
+
+  it('formats the Live note answer without duplicating a recognized equals sign', () => {
+    expect(formatCalculationAnswer('2+1=', '3')).toBe('2+1= 3');
+    expect(formatCalculationAnswer('2+1', '3')).toBe('2+1 = 3');
   });
 });

@@ -33,3 +33,8 @@ export function interpretRecognition(text: string): { expression: string; result
   const expression = normalizeMathText(text);
   return { expression, result: evaluateExpression(expression).display };
 }
+
+export function formatCalculationAnswer(expression: string, result: string): string {
+  const separator = expression.endsWith('=') ? ' ' : ' = ';
+  return `${expression}${separator}${result}`;
+}
