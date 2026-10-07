@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getHandwritingFontSize } from './paint';
+import { getAutoWriteAnswerFontSize, getHandwritingFontSize } from './paint';
 import type { Stroke } from '../../types/strokes';
 
 function stroke(top: number, bottom: number, width = 5, mode: Stroke['mode'] = 'pen'): Stroke {
@@ -24,5 +24,21 @@ describe('handwriting-matched answer size', () => {
   it('ignores eraser marks when estimating handwriting size', () => {
     expect(getHandwritingFontSize([stroke(20, 60), stroke(0, 200, 10, 'pixel-eraser')], 70, 240)).toBe(57);
     expect(getHandwritingFontSize([], 70, 240)).toBe(27);
+  });
+
+  it('shrinks the auto-written answer until it fits inside the canvas width', () => {
+    const context = {
+      font: '',
+      measureText(text: string) {
+        const fontSize = Number.parseInt(this.font.match(/(\d+)px/)?.[1] ?? '0', 10);
+        return { width: text.length * fontSize * 0.55 };
+      },
+    } as Pick<CanvasRenderingContext2D, 'font' | 'measureText'>;
+
+    const fontSize = getAutoWriteAnswerFontSize(context as CanvasRenderingContext2D, '123456789', 100, 120, 18, 'sans-serif', 400);
+    expect(fontSize).toBeLessThan(120);
+    expect(fontSize).toBeGreaterThanOrEqual(18);
+    context.font = `400 ${fontSize}px sans-serif`;
+    expect(context.measureText('123456789').width).toBeLessThanOrEqual(100);
   });
 });

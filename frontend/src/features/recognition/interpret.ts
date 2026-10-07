@@ -10,6 +10,7 @@ export function normalizeMathText(text: string): string {
     .replace(/\\(?:,|;|!|quad|qquad)/g, '')
     .replace(/[{}]/g, '')
     .replace(/[−–]/g, '-')
+    .replace(/[Oo°]/g, '0')
     .replace(/[×·]/g, '×')
     .replace(/[÷]/g, '÷')
     .replace(/\*/g, '×')
@@ -22,11 +23,13 @@ export function isSupportedMathExpression(expression: string): boolean {
     return false;
   }
 
-  if (!/^[0-9+\-×÷().=]+$/.test(expression)) {
+  const normalized = normalizeMathText(expression);
+  if (!/^[0-9+\-×÷().=]+$/.test(normalized)) {
     return false;
   }
 
-  return evaluateExpression(expression).ok;
+  const result = evaluateExpression(normalized);
+  return result.ok || result.display === 'Undefined';
 }
 
 export function interpretRecognition(text: string): { expression: string; result: string } {

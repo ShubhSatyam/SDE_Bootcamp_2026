@@ -40,6 +40,7 @@ describe('math tokenizer and evaluator', () => {
     ['(1+2)×(3+4)', '21'],
     ['-(-3+5)', '-2'],
     ['3+4×5-2÷2', '22'],
+    ['1÷3', '0.333'],
   ])('evaluates %s as %s', (source, expected) => {
     expect(evaluateExpression(source)).toMatchObject({ ok: true, display: expected });
   });

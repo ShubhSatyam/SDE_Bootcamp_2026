@@ -194,7 +194,7 @@ export function evaluateAst(node: MathExpressionNode): number {
 }
 
 function formatNumber(value: number): string {
-  const normalized = Number(value.toPrecision(12));
+  const normalized = Number(value.toFixed(3));
   const text = Object.is(normalized, -0) ? '0' : String(normalized);
   return text.replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
 }

@@ -66,6 +66,25 @@ export function paintStrokes(context: CanvasRenderingContext2D, strokes: Stroke[
   context.globalCompositeOperation = 'source-over';
 }
 
+export function getAutoWriteAnswerFontSize(
+  context: CanvasRenderingContext2D,
+  answer: string,
+  maxWidth: number,
+  maxFontSize: number,
+  minFontSize = 18,
+  fontFamily = 'system-ui, sans-serif',
+  fontWeight = 400,
+): number {
+  let fontSize = maxFontSize;
+  while (fontSize >= minFontSize) {
+    context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    if (context.measureText(answer).width <= maxWidth) return fontSize;
+    fontSize -= 2;
+  }
+  context.font = `${fontWeight} ${minFontSize}px ${fontFamily}`;
+  return minFontSize;
+}
+
 export function renderCanvas(
   canvas: HTMLCanvasElement,
   strokes: Stroke[],
@@ -93,23 +112,35 @@ export function renderCanvas(
     const baseFontSize = answerMode === 'ink' ? 100 : 27;
     const fontFamily = answerMode === 'ink' ? autoWriteFontFamily : answerFont.fontFamily;
     const fontWeight = answerMode === 'ink' ? 400 : answerFont.fontWeight;
-    context.font = `${fontWeight} ${baseFontSize}px ${fontFamily}`;
+    const fontWeightValue = Number.parseInt(String(fontWeight), 10) || 400;
+    context.font = `${fontWeightValue} ${baseFontSize}px ${fontFamily}`;
     const answerAtBaseSize = context.measureText(answer);
     const glyphHeight = answerAtBaseSize.actualBoundingBoxAscent + answerAtBaseSize.actualBoundingBoxDescent;
     const maxFontSize = Math.min(240, height * 0.8);
+    const maxAnswerWidth = Math.max(60, width - 72);
     const fontSize = answerMode === 'ink'
-      ? getHandwritingFontSize(penStrokes, glyphHeight, maxFontSize)
+      ? Math.min(
+          getHandwritingFontSize(penStrokes, glyphHeight, maxFontSize),
+          getAutoWriteAnswerFontSize(context, answer, maxAnswerWidth, maxFontSize, 18, fontFamily, fontWeightValue),
+        )
       : 27;
-    context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    context.font = `${fontWeightValue} ${fontSize}px ${fontFamily}`;
     const metrics = context.measureText(answer);
     context.textBaseline = 'alphabetic';
-    const measured = context.measureText(answer).width;
+    const measured = metrics.width;
+    const paper = canvas.parentElement;
+    const paperWidth = Math.max(width, measured + 88);
+    if (paper && paper.clientWidth < paperWidth) {
+      paper.style.width = `${paperWidth}px`;
+      paper.style.minWidth = `${paperWidth}px`;
+    }
     const strokeWidths = penStrokes.map((stroke) => stroke.width).sort((a, b) => a - b);
     const medianStrokeWidth = strokeWidths[Math.floor(strokeWidths.length / 2)] ?? 5;
     const inkRight = bounds.right + medianStrokeWidth / 2;
     const inkBottom = bounds.bottom + medianStrokeWidth / 2;
     const gap = answerMode === 'ink' ? Math.max(4, medianStrokeWidth * 1.2) : 16;
-    const left = Math.min(inkRight + gap, Math.max(12, width - measured - 16));
+    const drawableWidth = Math.max(width, paper?.clientWidth ?? width);
+    const left = Math.max(12, Math.min(inkRight + gap, drawableWidth - measured - 16));
     const baseline = answerMode === 'ink'
       ? Math.min(height - metrics.actualBoundingBoxDescent - 8, inkBottom - metrics.actualBoundingBoxDescent)
       : Math.min(height - 18, Math.max(40, bounds.bottom + 2));
