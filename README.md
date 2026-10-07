@@ -18,6 +18,7 @@ CalcInk has no backend: recognition and calculation run locally in the browser, 
 - Deterministic expression parser for integers, decimals, unary signs, parentheses, and `+`, `−`, `×`, `÷`; operator precedence follows standard arithmetic rules.
 - Safe handling for malformed input and division by zero (`Undefined`).
 - Recognition is debounced after edits; erasing, undo, redo, and clearing all update the result.
+- Optional auto-write mode shows a recognized numeric result in ink color after a handwritten trailing `=`, with selectable fonts (system sans serif by default).
 - Offline-capable static deployment. No analytics, remote fonts, cloud APIs, or server inference.
 
 ## Source layout

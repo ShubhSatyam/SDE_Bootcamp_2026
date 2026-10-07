@@ -8,13 +8,16 @@ import type { Point, Stroke, Tool } from '../../../types/strokes';
 type Props = {
   strokes: Stroke[];
   answer: string;
+  answerMode: 'suggestion' | 'ink';
+  inkColor: string;
+  autoWriteFontFamily: string;
   recognizedExpression: string;
   tool: Tool;
   strokeWidth: number;
   onCommit: (strokes: Stroke[]) => void;
 };
 
-export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, strokeWidth, onCommit }: Props) {
+export function DrawingCanvas({ strokes, answer, answerMode, inkColor, autoWriteFontFamily, recognizedExpression, tool, strokeWidth, onCommit }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<number>();
@@ -22,6 +25,9 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
   const workingStrokesRef = useRef(strokes);
   const currentStrokeRef = useRef<Stroke>();
   const answerRef = useRef(answer);
+  const answerModeRef = useRef(answerMode);
+  const inkColorRef = useRef(inkColor);
+  const autoWriteFontFamilyRef = useRef(autoWriteFontFamily);
   const changedRef = useRef(false);
   const [paperSize, setPaperSize] = useState({ width: 0, height: 0 });
 
@@ -29,7 +35,7 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
     if (frameRef.current !== undefined) return;
     frameRef.current = requestAnimationFrame(() => {
       frameRef.current = undefined;
-      if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current);
+      if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current, answerModeRef.current, inkColorRef.current, autoWriteFontFamilyRef.current);
     });
   }, []);
 
@@ -41,13 +47,28 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
     }
     workingStrokesRef.current = strokes;
     answerRef.current = answer;
+    answerModeRef.current = answerMode;
+    inkColorRef.current = inkColor;
+    autoWriteFontFamilyRef.current = autoWriteFontFamily;
     activePointerRef.current = undefined;
     currentStrokeRef.current = undefined;
     changedRef.current = false;
     if (canvasRef.current) {
-      renderCanvas(canvasRef.current, strokes, answer);
+      renderCanvas(canvasRef.current, strokes, answer, answerMode, inkColor, autoWriteFontFamily);
     }
-  }, [strokes, answer]);
+  }, [strokes, answer, answerMode, inkColor, autoWriteFontFamily]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void document.fonts.load(`400 100px "${autoWriteFontFamily}"`).then(() => {
+      if (!cancelled) requestDraw();
+    }).catch((error: unknown) => {
+      console.error(`Could not load auto-write font "${autoWriteFontFamily}".`, error);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [autoWriteFontFamily, requestDraw]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -58,7 +79,7 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
       setPaperSize({ width: bounds.width, height: bounds.height });
       if (bounds.width > 0 && bounds.height > 0) {
         configureCanvasSize(canvas, bounds.width, bounds.height, window.devicePixelRatio || 1);
-        if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current);
+        if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current, answerModeRef.current, inkColorRef.current, autoWriteFontFamilyRef.current);
       }
     };
     const observer = new ResizeObserver(resize);
@@ -131,7 +152,7 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
       workingStrokesRef.current = [...workingStrokesRef.current, stroke];
       changedRef.current = true;
     }
-    if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current);
+    if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current, answerModeRef.current, inkColorRef.current, autoWriteFontFamilyRef.current);
     requestDraw();
   };
 
@@ -160,7 +181,7 @@ export function DrawingCanvas({ strokes, answer, recognizedExpression, tool, str
         currentStrokeRef.current.points.push(nextPoint);
       }
     }
-    if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current);
+    if (canvasRef.current) renderCanvas(canvasRef.current, workingStrokesRef.current, answerRef.current, answerModeRef.current, inkColorRef.current, autoWriteFontFamilyRef.current);
     requestDraw();
   };
 

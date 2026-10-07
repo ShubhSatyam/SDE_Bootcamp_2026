@@ -13,14 +13,29 @@ export function getInkBounds(strokes: Stroke[]): InkBounds | null {
   };
 }
 
-export function paintStrokes(context: CanvasRenderingContext2D, strokes: Stroke[]): void {
+export function getHandwritingFontSize(
+  strokes: Stroke[],
+  glyphHeightAt100Px: number,
+  maxFontSize: number,
+  scale = 0.88,
+): number {
+  const penStrokes = strokes.filter((stroke) => stroke.mode === 'pen' && stroke.points.length > 0);
+  const bounds = getInkBounds(penStrokes);
+  if (!bounds || glyphHeightAt100Px <= 0) return 27;
+
+  const strokeWidth = penStrokes.map((stroke) => stroke.width).sort((a, b) => a - b)[Math.floor(penStrokes.length / 2)];
+  const inkHeight = bounds.bottom - bounds.top + strokeWidth;
+  return Math.max(18, Math.min(maxFontSize, Math.round(100 * inkHeight * scale / glyphHeightAt100Px)));
+}
+
+export function paintStrokes(context: CanvasRenderingContext2D, strokes: Stroke[], inkColor = '#273b34'): void {
   context.lineCap = 'round';
   context.lineJoin = 'round';
   for (const stroke of strokes) {
     if (stroke.points.length === 0) continue;
     context.globalCompositeOperation = stroke.mode === 'pixel-eraser' ? 'destination-out' : 'source-over';
-    context.strokeStyle = '#273b34';
-    context.fillStyle = '#273b34';
+    context.strokeStyle = inkColor;
+    context.fillStyle = inkColor;
     const effectiveWidth = stroke.mode === 'pixel-eraser' ? stroke.width * 3 : stroke.width;
     context.lineWidth = effectiveWidth;
 
@@ -55,6 +70,9 @@ export function renderCanvas(
   canvas: HTMLCanvasElement,
   strokes: Stroke[],
   answer: string,
+  answerMode: 'suggestion' | 'ink' = 'suggestion',
+  themeInkColor?: string,
+  autoWriteFontFamily = 'system-ui, sans-serif',
 ): void {
   const context = canvas.getContext('2d');
   if (!context) return;
@@ -64,17 +82,63 @@ export function renderCanvas(
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
-  paintStrokes(context, strokes);
+  const inkColor = themeInkColor || getComputedStyle(canvas).color || '#273b34';
+  paintStrokes(context, strokes, inkColor);
 
-  const bounds = getInkBounds(strokes);
+  const penStrokes = strokes.filter((stroke) => stroke.mode === 'pen' && stroke.points.length > 0);
+  const bounds = getInkBounds(penStrokes);
   if (bounds && answer) {
-    const fontSize = 27;
-    context.font = `600 ${fontSize}px "Segoe Print", "Comic Sans MS", cursive`;
+    const noteExpression = canvas.ownerDocument.querySelector('.notepad-expression');
+    const answerFont = getComputedStyle(noteExpression ?? canvas);
+    const baseFontSize = answerMode === 'ink' ? 100 : 27;
+    const fontFamily = answerMode === 'ink' ? autoWriteFontFamily : answerFont.fontFamily;
+    const fontWeight = answerMode === 'ink' ? 400 : answerFont.fontWeight;
+    context.font = `${fontWeight} ${baseFontSize}px ${fontFamily}`;
+    const answerAtBaseSize = context.measureText(answer);
+    const glyphHeight = answerAtBaseSize.actualBoundingBoxAscent + answerAtBaseSize.actualBoundingBoxDescent;
+    const maxFontSize = Math.min(240, height * 0.8);
+    const fontSize = answerMode === 'ink'
+      ? getHandwritingFontSize(penStrokes, glyphHeight, maxFontSize)
+      : 27;
+    context.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+    const metrics = context.measureText(answer);
     context.textBaseline = 'alphabetic';
     const measured = context.measureText(answer).width;
-    const left = Math.min(bounds.right + 16, Math.max(12, width - measured - 16));
-    const baseline = Math.min(height - 18, Math.max(40, bounds.bottom + 2));
-    context.fillStyle = answer === 'Invalid expression' ? '#a36a55' : '#bd6646';
-    context.fillText(answer, left, baseline);
+    const strokeWidths = penStrokes.map((stroke) => stroke.width).sort((a, b) => a - b);
+    const medianStrokeWidth = strokeWidths[Math.floor(strokeWidths.length / 2)] ?? 5;
+    const inkRight = bounds.right + medianStrokeWidth / 2;
+    const inkBottom = bounds.bottom + medianStrokeWidth / 2;
+    const gap = answerMode === 'ink' ? Math.max(4, medianStrokeWidth * 1.2) : 16;
+    const left = Math.min(inkRight + gap, Math.max(12, width - measured - 16));
+    const baseline = answerMode === 'ink'
+      ? Math.min(height - metrics.actualBoundingBoxDescent - 8, inkBottom - metrics.actualBoundingBoxDescent)
+      : Math.min(height - 18, Math.max(40, bounds.bottom + 2));
+    context.fillStyle = answerMode === 'ink'
+      ? inkColor
+      : answer === 'Invalid expression'
+        ? '#a36a55'
+        : '#bd6646';
+    if (answerMode === 'ink') {
+      const answerCanvas = canvas.ownerDocument.createElement('canvas');
+      answerCanvas.width = canvas.width;
+      answerCanvas.height = canvas.height;
+      const answerContext = answerCanvas.getContext('2d');
+      if (!answerContext) throw new Error('Could not create an offscreen canvas context to render the answer.');
+      answerContext.setTransform(canvas.width / width, 0, 0, canvas.height / height, 0, 0);
+      answerContext.font = context.font;
+      answerContext.textBaseline = 'alphabetic';
+      answerContext.fillStyle = inkColor;
+      answerContext.fillText(answer, left, baseline);
+      answerContext.globalCompositeOperation = 'destination-out';
+      answerContext.lineWidth = medianStrokeWidth;
+      answerContext.lineJoin = 'round';
+      answerContext.strokeText(answer, left, baseline);
+      context.save();
+      context.setTransform(1, 0, 0, 1, 0, 0);
+      context.drawImage(answerCanvas, 0, 0);
+      context.restore();
+    } else {
+      context.fillText(answer, left, baseline);
+    }
   }
 }

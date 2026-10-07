@@ -2,10 +2,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { DrawingCanvas } from '../features/canvas/components/DrawingCanvas';
 import { StrokeHistory } from '../state/StrokeHistory';
 import { useRecognition } from '../features/recognition/hooks/useRecognition';
+import { formatCalculationAnswer } from '../features/recognition/interpret';
+import { AUTO_WRITE_FONT_OPTIONS, getAutoWriteFontFamily, type AutoWriteFontId } from '../features/canvas/autoWriteFonts';
 import type { Stroke, Tool } from '../types/strokes';
 import { createNote, loadNotes, saveNotes, type Note } from '../state/notes';
 
 const activeNoteStorageKey = 'calcink-active-note-v1';
+const autoWriteFontStorageKey = 'calcink-auto-write-font-v1';
+
+function getInitialAutoWriteFont(): AutoWriteFontId {
+  try {
+    const storedFont = localStorage.getItem(autoWriteFontStorageKey);
+    return AUTO_WRITE_FONT_OPTIONS.find((font) => font.id === storedFont)?.id ?? 'sans-serif';
+  } catch {
+    return 'sans-serif';
+  }
+}
 
 function getInitialNoteId(notes: Note[]): string {
   try {
@@ -28,6 +40,8 @@ function App() {
   const [tool, setTool] = useState<Tool>('pen');
   const [eraseMenuOpen, setEraseMenuOpen] = useState(false);
   const [strokeWidth, setStrokeWidth] = useState(5);
+  const [autoWriteAnswer, setAutoWriteAnswer] = useState(false);
+  const [autoWriteFont, setAutoWriteFont] = useState<AutoWriteFontId>(getInitialAutoWriteFont);
   const [online, setOnline] = useState(navigator.onLine);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('calcink-theme') === 'dark');
   const { state: recognition, recognizeStrokes, modelProgress } = useRecognition();
@@ -119,6 +133,14 @@ function App() {
   }, [darkMode]);
 
   useEffect(() => {
+    try {
+      localStorage.setItem(autoWriteFontStorageKey, autoWriteFont);
+    } catch {
+      // Keep the selected font available for this session if browser storage is unavailable.
+    }
+  }, [autoWriteFont]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))) return;
@@ -149,6 +171,12 @@ function App() {
           ? 'Ready, works offline'
           : 'Offline and ready';
   const hasExpression = Boolean(recognition.expression);
+  const canvasInkColor = darkMode ? '#e7e9ed' : '#273b34';
+  const shouldWriteAnswer = autoWriteAnswer
+    && recognition.status === 'ready'
+    && recognition.expression.trimEnd().endsWith('=')
+    && recognition.result !== 'Undefined'
+    && recognition.result !== 'Invalid expression';
   const confidencePercent = recognition.confidence === undefined ? null : Math.round(recognition.confidence * 100);
   const notepadExpression = recognition.status === 'ready' && hasExpression
     ? recognition.expression
@@ -158,7 +186,7 @@ function App() {
         ? 'Reading…'
         : 'Start writing';
   const notepadAnswer = hasExpression
-    ? `${recognition.expression} = ${recognition.result}`
+    ? formatCalculationAnswer(recognition.expression, recognition.result)
     : recognition.status === 'unrecognized'
       ? 'This part is unclear — try writing it more cleanly.'
       : recognition.status === 'error'
@@ -255,6 +283,35 @@ function App() {
             <input type="range" min="2" max="12" step="1" value={strokeWidth} onChange={(event) => setStrokeWidth(Number(event.target.value))} aria-label="Stroke width" />
             <span className="width-preview" style={{ width: `${strokeWidth + 3}px`, height: `${strokeWidth + 3}px` }} />
           </label>
+          <div className="auto-write-controls">
+            <label className="auto-answer-control" title="Write a recognized numeric answer in ink after a trailing equals sign">
+              <input
+                type="checkbox"
+                checked={autoWriteAnswer}
+                onChange={(event) => setAutoWriteAnswer(event.target.checked)}
+                aria-label="Automatically write answer after equals"
+              />
+              <span>Auto-write</span>
+            </label>
+            <label className="auto-write-font-control">
+              <span>Font</span>
+              <select
+                value={autoWriteFont}
+                onChange={(event) => {
+                  const font = AUTO_WRITE_FONT_OPTIONS.find((option) => option.id === event.target.value);
+                  if (font) setAutoWriteFont(font.id);
+                }}
+                aria-label="Auto-write font"
+                style={{ fontFamily: getAutoWriteFontFamily(autoWriteFont) }}
+              >
+                {AUTO_WRITE_FONT_OPTIONS.map((font) => (
+                  <option key={font.id} value={font.id} style={{ fontFamily: getAutoWriteFontFamily(font.id) }}>
+                    {font.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
           <button className="clear-button" onClick={clear} disabled={strokes.length === 0} title="Clear the page">
             <span aria-hidden="true">⌫</span> Clear
           </button>
@@ -266,6 +323,9 @@ function App() {
           <DrawingCanvas
             strokes={strokes}
             answer={hasExpression ? recognition.result : ''}
+            answerMode={shouldWriteAnswer ? 'ink' : 'suggestion'}
+            inkColor={canvasInkColor}
+            autoWriteFontFamily={getAutoWriteFontFamily(autoWriteFont)}
             recognizedExpression={recognition.expression}
             tool={tool}
             strokeWidth={strokeWidth}
