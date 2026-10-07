@@ -10,14 +10,18 @@
 
 ## Offline and deployment path
 
-The service worker is registered before model initialization. The production build generates a precache list from the full `dist/` tree, including bundled ONNX Runtime WASM and all model files; activation waits for the cache to finish. The worker and model assets are same-origin static files, so after the first successful installation no network service participates in recognition or calculation.
+The service worker is registered before model initialization. The production build generates a precache list from the full `frontend/dist/` tree, including bundled ONNX Runtime WASM and all model files; activation waits for the cache to finish. The worker and model assets are same-origin static files, so after the first successful installation no network service participates in recognition or calculation.
 
 ## Module map
 
-- `src/canvas/`: pointer canvas, coordinate transforms, stroke hit tests, rasterization, drawing renderer.
-- `src/math/`: tokenizer and deterministic parser/evaluator.
-- `src/recognition/`: model-text normalization and expression result handling.
-- `src/workers/`: local-only ONNX inference worker.
-- `src/hooks/`: worker lifecycle, edit debounce, and stale-result handling.
-- `src/state/`: bounded stroke-history snapshots.
-- `scripts/`: pinned model downloader/checksum verification and production precache generation.
+- `frontend/src/canvas/`: pointer canvas, coordinate transforms, stroke hit tests, rasterization, drawing renderer.
+- `frontend/src/math/`: tokenizer and deterministic parser/evaluator.
+- `frontend/src/recognition/`: model-text normalization and expression result handling.
+- `frontend/src/workers/`: local-only ONNX inference worker.
+- `frontend/src/hooks/`: worker lifecycle, edit debounce, and stale-result handling.
+- `frontend/src/state/`: bounded stroke-history snapshots.
+- `frontend/public/`: static app assets and local model files.
+- `frontend/scripts/`: pinned model downloader/checksum verification and production precache generation.
+- `frontend/` also contains the frontend package manifests and Vite/TypeScript/Vitest/ESLint configuration.
+
+CalcInk is a client-only application; it has no backend service or API.
