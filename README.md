@@ -2,6 +2,13 @@
 
 CalcInk is a private, offline-first handwriting calculator. Write an arithmetic expression on the digital-paper canvas and the app recognizes the handwritten formula, evaluates it safely, and paints the answer beside the writing.
 
+## Repository layout
+
+- `frontend/`: the complete client-side application, including its source, public model assets, build/test tooling, and scripts.
+- `README.md`, `ARCHITECTURE.md`, and `.gitignore`: project documentation and repository-level configuration.
+
+CalcInk has no backend: recognition and calculation run locally in the browser, with no application server or API.
+
 ## Features
 
 - Pen, mouse, touch, and stylus input on a smooth high-DPI canvas.
@@ -38,7 +45,7 @@ Drawing and rendering stay on the main thread and do not wait for recognition. S
 - **Token and confidence handling:** the postprocessor maps the model's `\times`/`\cdot`, `\div`, and `\minus` spellings to `×`, `÷`, and `-`, then accepts only `0–9`, `+`, `-`, `×`, `÷`, `.`, and `=`. Unsupported markup or invalid expressions fail safely without showing an answer. The worker reports the mean softmax probability of its selected output tokens; it is a model-score heuristic, **not a calibrated probability of correctness**. Results below the conservative 0.35 heuristic cutoff are withheld and the user is prompted to rewrite the expression.
 - **Offline/browser suitability:** this exact revision publishes the two ONNX graph files and tokenizer/processor metadata, so it runs with ONNX Runtime Web's WASM execution provider. CalcInk bundles these assets and the runtime locally; all preprocessing and inference execute in a Web Worker. Runtime model, tokenizer, and WASM loads are same-origin local assets; there are no runtime cloud/API requests.
 
-The two ONNX files (about 118 MB total) and tokenizer/processor metadata are checked into `public/models/pix2text-mfr/`. The WASM runtime is bundled from the pinned npm dependency into the production assets and precached by the service worker. `npm run download:model` can restore the model files from their pinned upstream revision and verifies the ONNX SHA-256 checksums. Inference and tokenizer file access use only these local assets; there are no cloud APIs, remote model calls, or CDN requests.
+The two ONNX files (about 118 MB total) and tokenizer/processor metadata are checked into `frontend/public/models/pix2text-mfr/`. The WASM runtime is bundled from the pinned npm dependency into the production assets and precached by the service worker. Run `npm run download:model` from `frontend/` to restore the model files from their pinned upstream revision and verify the ONNX SHA-256 checksums. Inference and tokenizer file access use only these local assets; there are no cloud APIs, remote model calls, or CDN requests.
 
 ### Offline operation
 
@@ -50,8 +57,8 @@ Handwriting is kept in memory and is not uploaded or persisted. Reloading the pa
 
 The app has no external runtime network dependency:
 
-- Local ONNX model files live in `public/models/pix2text-mfr/` and are loaded from same-origin URLs only.
-- The tokenizer metadata and generation config are fetched from the local `public/models/...` directory at runtime.
+- Local ONNX model files live in `frontend/public/models/pix2text-mfr/` and are loaded from same-origin URLs only.
+- The tokenizer metadata and generation config are fetched from the app's local `frontend/public/models/...` directory at runtime.
 - ONNX Runtime Web's WASM runtime is bundled from the npm dependency and precached by the generated service worker.
 - There are no API calls, no remote configuration fetches, and no third-party CDN scripts or fonts.
 - The app uses a system font stack only; there are no `@import` rules or remote web-font requests.
@@ -59,9 +66,10 @@ The app has no external runtime network dependency:
 
 ### Exact offline verification steps
 
-1. Install dependencies and build the production bundle:
+1. From the repository root, install dependencies and build the production bundle:
 
    ```sh
+   cd frontend
    npm install
    npm run build
    ```
@@ -93,11 +101,12 @@ This verification is only valid on an HTTP localhost or HTTPS deployment; direct
 Requirements: Node.js 20+ and npm.
 
 ```sh
+cd frontend
 npm install
 npm run dev
 ```
 
-The model weights are included in the repository. To restore them after removing the model directory:
+The model weights are included in `frontend/public/models/pix2text-mfr/`. To restore them after removing the model directory, run this from `frontend/`:
 
 ```sh
 npm run download:model
@@ -105,9 +114,11 @@ npm run download:model
 
 ## Scripts
 
+Run all npm commands from `frontend/`.
+
 | Script                   | Purpose                                                                                                                |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
-| `npm run dev`            | Start the Vite development server.                                                                                     |
+| `npm run dev`            | Start the Vite development server (run from `frontend/`).                                                              |
 | `npm test`               | Run unit tests for parsing/evaluation, recognition output handling, coordinates, stroke erasure geometry, and history. |
 | `npm run build`          | Type-check, create the production bundle, and generate the offline precache service worker.                            |
 | `npm run preview`        | Serve the production build locally for deployment smoke checks.                                                        |
@@ -116,12 +127,13 @@ npm run download:model
 ## Production build and deployment
 
 ```sh
+cd frontend
 npm test
 npm run build
 npm run preview
 ```
 
-Deploy the complete `dist/` directory to any static host that serves JavaScript modules, `.onnx`, `.wasm`, and `.webmanifest` files with suitable MIME types. Use HTTPS and serve at the site root (the service worker and local model URLs are root-relative). No application server, API endpoint, or runtime secrets are required. The build includes all model/runtime binaries, so the deployment is intentionally large.
+Deploy the complete `frontend/dist/` directory to any static host that serves JavaScript modules, `.onnx`, `.wasm`, and `.webmanifest` files with suitable MIME types. Use HTTPS and serve at the site root (the service worker and local model URLs are root-relative). No application server, API endpoint, or runtime secrets are required. The build includes all model/runtime binaries, so the deployment is intentionally large.
 
 ## Tests
 
@@ -137,4 +149,4 @@ The Vitest suite covers tokenizer output, precedence, decimals, unary negatives,
 
 ## Engineering notes
 
-The project keeps core math and stroke/history logic independent of React and browser services so they can be tested directly. Any recognition change must preserve the local-only model configuration, worker isolation, result staleness checks, offline precache, and parser safety tests. Model and runtime provenance are pinned in `scripts/download-model.mjs`; update those pins and this attribution together when refreshing assets.
+The project keeps core math and stroke/history logic independent of React and browser services so they can be tested directly. Any recognition change must preserve the local-only model configuration, worker isolation, result staleness checks, offline precache, and parser safety tests. Model and runtime provenance are pinned in `frontend/scripts/download-model.mjs`; update those pins and this attribution together when refreshing assets.
