@@ -1,4 +1,4 @@
-import type { Point } from '../types/strokes';
+import type { Point } from '../../types/strokes';
 
 export type CanvasRect = Pick<DOMRect, 'left' | 'top'> & Partial<Pick<DOMRect, 'width' | 'height'>>;
 

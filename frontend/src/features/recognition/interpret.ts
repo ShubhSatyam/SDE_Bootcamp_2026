@@ -1,4 +1,4 @@
-import { evaluateExpression } from '../math/evaluate';
+import { evaluateExpression } from '../calculator/evaluate';
 
 export function normalizeMathText(text: string): string {
   return text

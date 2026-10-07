@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent } from 'react';
-import { configureCanvasSize, clientToCanvasPoint } from './coordinates';
-import { isPointNearStroke } from './geometry';
-import { renderCanvas } from './paint';
-import type { Point, Stroke, Tool } from '../types/strokes';
+import { configureCanvasSize, clientToCanvasPoint } from '../coordinates';
+import { isPointNearStroke } from '../geometry';
+import { renderCanvas } from '../paint';
+import type { Point, Stroke, Tool } from '../../../types/strokes';
 
 type Props = {
   strokes: Stroke[];

@@ -1,4 +1,4 @@
-import type { Point, Stroke } from '../types/strokes';
+import type { Point, Stroke } from '../../types/strokes';
 
 function distanceToSegment(point: Point, start: Point, end: Point): number {
   const dx = end.x - start.x;

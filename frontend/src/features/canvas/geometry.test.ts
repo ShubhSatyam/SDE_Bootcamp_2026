@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isPointNearStroke } from './geometry';
-import type { Stroke } from '../types/strokes';
+import type { Stroke } from '../../types/strokes';
 
 const stroke: Stroke = {
   id: 1,

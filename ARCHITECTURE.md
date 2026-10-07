@@ -14,12 +14,14 @@ The service worker is registered before model initialization. The production bui
 
 ## Module map
 
-- `frontend/src/canvas/`: pointer canvas, coordinate transforms, stroke hit tests, rasterization, drawing renderer.
-- `frontend/src/math/`: tokenizer and deterministic parser/evaluator.
-- `frontend/src/recognition/`: model-text normalization and expression result handling.
-- `frontend/src/workers/`: local-only ONNX inference worker.
-- `frontend/src/hooks/`: worker lifecycle, edit debounce, and stale-result handling.
+- `frontend/src/app/`: React application entry point and top-level interface.
+- `frontend/src/features/canvas/`: drawing component, coordinates, stroke geometry, and canvas rendering; tests stay beside the code they cover.
+- `frontend/src/features/calculator/`: tokenizer, parser, and arithmetic evaluator.
+- `frontend/src/features/recognition/`: model-text interpretation, recognition hook, and local ONNX inference worker.
 - `frontend/src/state/`: bounded stroke-history snapshots.
+- `frontend/src/state/notes.ts`: browser-local note persistence and note management.
+- `frontend/src/styles/`: application styles.
+- `frontend/src/types/`: shared stroke and point types, plus the ONNX Runtime type declaration.
 - `frontend/public/`: static app assets and local model files.
 - `frontend/scripts/`: pinned model downloader/checksum verification and production precache generation.
 - `frontend/` also contains the frontend package manifests and Vite/TypeScript/Vitest/ESLint configuration.

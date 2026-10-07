@@ -13,11 +13,28 @@ CalcInk has no backend: recognition and calculation run locally in the browser, 
 
 - Pen, mouse, touch, and stylus input on a smooth high-DPI canvas.
 - Stroke eraser, pixel eraser, undo/redo, clear, and adjustable ink width.
+- Create, rename, switch between, and delete multiple notes; titles and handwriting are saved in this browser.
 - Local handwriting-to-math recognition in a dedicated Web Worker.
 - Deterministic expression parser for integers, decimals, unary signs, parentheses, and `+`, `−`, `×`, `÷`; operator precedence follows standard arithmetic rules.
 - Safe handling for malformed input and division by zero (`Undefined`).
 - Recognition is debounced after edits; erasing, undo, redo, and clearing all update the result.
 - Offline-capable static deployment. No analytics, remote fonts, cloud APIs, or server inference.
+
+## Source layout
+
+```text
+frontend/src/
+├── app/                    # App component and browser entry point
+├── features/
+│   ├── calculator/         # Expression tokenizer, parser, and evaluator
+│   ├── canvas/             # Drawing UI, geometry, coordinates, and painting
+│   └── recognition/        # Recognition logic, hook, and worker
+├── state/                  # Stroke history and browser-local notes
+├── styles/                 # Global application styles
+└── types/                  # Shared TypeScript types
+```
+
+Tests are colocated with the modules they cover. Static model and PWA assets are in `frontend/public/`; build and model scripts are in `frontend/scripts/`.
 
 ## Architecture
 
@@ -51,7 +68,7 @@ The two ONNX files (about 118 MB total) and tokenizer/processor metadata are che
 
 CalcInk is a static app. On the first online visit, wait for the service worker to finish caching the app and model, and for the local model status to become ready. The production build generates a precache manifest containing the complete app, ONNX weights, and WASM runtime. Subsequent visits can start and calculate without a network connection, subject to browser storage quota and service-worker support. Serve the app over HTTPS (or localhost); opening `index.html` as a `file://` URL does not enable workers or service workers.
 
-Handwriting is kept in memory and is not uploaded or persisted. Reloading the page clears the current sheet.
+Note titles and handwriting are saved in this browser’s local storage and are not uploaded. Notes remain available after a reload on the same browser and device; they do not sync to other browsers or devices.
 
 ### Network dependency audit
 

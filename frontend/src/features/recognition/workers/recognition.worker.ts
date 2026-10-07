@@ -1,8 +1,8 @@
 import { Tokenizer } from '@huggingface/tokenizers';
 import * as ort from 'onnxruntime-web/wasm';
-import wasmModuleUrl from '../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs?url';
-import wasmBinaryUrl from '../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm?url';
-import type { Stroke } from '../types/strokes';
+import wasmModuleUrl from '../../../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.mjs?url';
+import wasmBinaryUrl from '../../../../node_modules/onnxruntime-web/dist/ort-wasm-simd-threaded.wasm?url';
+import type { Stroke } from '../../../types/strokes';
 
 type WorkerRequest =
   | { type: 'initialize' }

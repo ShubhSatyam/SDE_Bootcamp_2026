@@ -1,19 +1,41 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DrawingCanvas } from './canvas/DrawingCanvas';
-import { StrokeHistory } from './state/StrokeHistory';
-import { useRecognition } from './hooks/useRecognition';
-import type { Stroke, Tool } from './types/strokes';
+import { DrawingCanvas } from '../features/canvas/components/DrawingCanvas';
+import { StrokeHistory } from '../state/StrokeHistory';
+import { useRecognition } from '../features/recognition/hooks/useRecognition';
+import type { Stroke, Tool } from '../types/strokes';
+import { createNote, loadNotes, saveNotes, type Note } from '../state/notes';
+
+const activeNoteStorageKey = 'calcink-active-note-v1';
+
+function getInitialNoteId(notes: Note[]): string {
+  try {
+    const storedId = localStorage.getItem(activeNoteStorageKey);
+    return notes.some((note) => note.id === storedId) ? storedId! : notes[0].id;
+  } catch {
+    return notes[0].id;
+  }
+}
 
 function App() {
-  const historyRef = useRef(new StrokeHistory());
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
+  const [notes, setNotes] = useState<Note[]>(loadNotes);
+  const [activeNoteId, setActiveNoteId] = useState(() => getInitialNoteId(notes));
+  const activeNote = notes.find((note) => note.id === activeNoteId) ?? notes[0];
+  const historyRef = useRef(new StrokeHistory(activeNote.strokes));
+  const [storageError, setStorageError] = useState(false);
+  const [strokes, setStrokes] = useState<Stroke[]>(() => activeNote?.strokes ?? []);
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [tool, setTool] = useState<Tool>('pen');
+  const [eraseMenuOpen, setEraseMenuOpen] = useState(false);
   const [strokeWidth, setStrokeWidth] = useState(5);
   const [online, setOnline] = useState(navigator.onLine);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('calcink-theme') === 'dark');
   const { state: recognition, recognizeStrokes, modelProgress } = useRecognition();
+  const initialStrokesRef = useRef(strokes);
+
+  useEffect(() => {
+    if (initialStrokesRef.current.length > 0) recognizeStrokes(initialStrokesRef.current);
+  }, [recognizeStrokes]);
 
   const syncHistoryState = useCallback(() => {
     setCanUndo(historyRef.current.canUndo);
@@ -22,9 +44,10 @@ function App() {
 
   const applyHistory = useCallback((next: Stroke[]) => {
     setStrokes(next);
+    setNotes((current) => current.map((note) => note.id === activeNoteId ? { ...note, strokes: next, updatedAt: Date.now() } : note));
     syncHistoryState();
     recognizeStrokes(next);
-  }, [recognizeStrokes, syncHistoryState]);
+  }, [activeNoteId, recognizeStrokes, syncHistoryState]);
 
   const commitStrokes = useCallback((next: Stroke[]) => {
     applyHistory(historyRef.current.commit(next));
@@ -38,9 +61,47 @@ function App() {
     if (historyRef.current.canRedo) applyHistory(historyRef.current.redo());
   }, [applyHistory]);
 
+  const selectNote = useCallback((note: Note) => {
+    setActiveNoteId(note.id);
+    historyRef.current = new StrokeHistory(note.strokes);
+    setStrokes(note.strokes);
+    setCanUndo(false);
+    setCanRedo(false);
+    recognizeStrokes(note.strokes);
+  }, [recognizeStrokes]);
+
+  const addNote = useCallback(() => {
+    const note = createNote(`Note ${notes.length + 1}`);
+    setNotes((current) => [...current, note]);
+    selectNote(note);
+  }, [notes.length, selectNote]);
+
+  const renameNote = useCallback((title: string) => {
+    setNotes((current) => current.map((note) => note.id === activeNoteId ? { ...note, title, updatedAt: Date.now() } : note));
+  }, [activeNoteId]);
+
+  const deleteNote = useCallback(() => {
+    if (notes.length <= 1 || !window.confirm(`Delete “${activeNote.title}”? This cannot be undone.`)) return;
+    const remaining = notes.filter((note) => note.id !== activeNoteId);
+    setNotes(remaining);
+    selectNote(remaining[0]);
+  }, [activeNote, activeNoteId, notes, selectNote]);
+
   const clear = useCallback(() => {
     if (strokes.length > 0) commitStrokes([]);
   }, [commitStrokes, strokes.length]);
+
+  useEffect(() => {
+    setStorageError(!saveNotes(notes));
+  }, [notes]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(activeNoteStorageKey, activeNoteId);
+    } catch {
+      // Keep the current session usable if browser storage is unavailable.
+    }
+  }, [activeNoteId]);
 
   useEffect(() => {
     const updateOnline = () => setOnline(navigator.onLine);
@@ -128,32 +189,56 @@ function App() {
         </button>
       </header>
 
-      <section className="welcome">
-        <div className="eyebrow"><span className="eyebrow-line" /> YOUR THOUGHTS, CALCULATED</div>
-        <h1>Just write it <em>out.</em></h1>
-        <p>A little space for numbers to make sense. Write naturally; your answer appears right where you need it.</p>
+      <section className="welcome" aria-label="Current note">
+        <h1>{activeNote.title || 'Untitled note'}</h1>
       </section>
 
       <section className="workspace" aria-label="Calculator workspace">
         <div className="workspace-topline">
           <div className="workspace-heading">
             <span className="workspace-icon" aria-hidden="true">✳</span>
-            <div><strong>Your scratchpad</strong><span>One step at a time</span></div>
+            <div><strong>Notes</strong><span>Saved on this device</span></div>
           </div>
-          <div className="privacy-note"><span aria-hidden="true">●</span> Private by design</div>
+          <div className="notes-controls">
+            <label className="note-picker-label">
+              <span className="sr-only">Choose a note</span>
+              <select value={activeNote.id} onChange={(event) => { const note = notes.find((item) => item.id === event.target.value); if (note) selectNote(note); }}>
+                {notes.map((note) => <option key={note.id} value={note.id}>{note.title || 'Untitled note'}</option>)}
+              </select>
+            </label>
+            <input className="note-title-input" aria-label="Rename active note" value={activeNote.title} onChange={(event) => renameNote(event.target.value)} />
+            <button className="note-action" type="button" onClick={addNote}>+ New</button>
+            <button className="note-action delete-note" type="button" onClick={deleteNote} disabled={notes.length <= 1} aria-label="Delete active note" title="Delete this note">Delete</button>
+          </div>
         </div>
 
         <div className="toolbar" role="toolbar" aria-label="Drawing tools">
           <div className="tool-group" aria-label="Ink tools">
-            <button className={`tool-button ${tool === 'pen' ? 'selected' : ''}`} onClick={() => setTool('pen')} aria-pressed={tool === 'pen'} title="Pen">
-              <span className="tool-symbol pen-symbol" aria-hidden="true">／</span><span>Write</span>
+            <button className={`tool-button ${tool === 'pen' ? 'selected' : ''}`} onClick={() => { setTool('pen'); setEraseMenuOpen(false); }} aria-pressed={tool === 'pen'} title="Write">
+              <svg className="tool-icon pencil-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.5-.8 4.3 4.3-.8L19.7 7.8a2.1 2.1 0 0 0-3-3L4 16.5Z"/><path d="m14.9 6.6 3 3"/></svg><span>Write</span>
             </button>
-            <button className={`tool-button ${tool === 'stroke-eraser' ? 'selected' : ''}`} onClick={() => setTool('stroke-eraser')} aria-pressed={tool === 'stroke-eraser'} aria-label="Whole-stroke eraser" title="Erase a whole drawn mark (E)">
-              <span className="tool-symbol eraser-symbol" aria-hidden="true">▱</span><span>Whole stroke</span>
-            </button>
-            <button className={`tool-button ${tool === 'pixel-eraser' ? 'selected' : ''}`} onClick={() => setTool('pixel-eraser')} aria-pressed={tool === 'pixel-eraser'} aria-label="Pixel eraser" title="Erase only the ink under the pointer">
-              <span className="tool-symbol pixel-symbol" aria-hidden="true">◌</span><span>Pixel</span>
-            </button>
+            <div className="erase-tool-wrap">
+              <button
+                className={`tool-button ${tool !== 'pen' ? 'selected' : ''}`}
+                type="button"
+                aria-haspopup="true"
+                aria-expanded={eraseMenuOpen}
+                onClick={() => setEraseMenuOpen((open) => !open)}
+                title="Choose an eraser"
+              >
+                <svg className="tool-icon eraser-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m7.2 19-3.1-3.1a2.3 2.3 0 0 1 0-3.3l7.3-7.3a2.3 2.3 0 0 1 3.3 0l5 5a2.3 2.3 0 0 1 0 3.3L13.2 19H7.2Z"/><path d="m8.3 8.5 7.2 7.2M13.2 19H21"/></svg><span>Erase</span><span className="erase-chevron" aria-hidden="true">⌄</span>
+              </button>
+              {eraseMenuOpen && (
+                <div className="erase-menu" role="group" aria-label="Eraser type">
+                  <button className={`erase-option ${tool === 'stroke-eraser' ? 'selected' : ''}`} type="button" onClick={() => { setTool('stroke-eraser'); setEraseMenuOpen(false); }}>
+                    <span className="erase-option-icon" aria-hidden="true">▱</span><span><strong>Whole stroke</strong><small>Remove a complete mark</small></span>
+                  </button>
+                  <button className={`erase-option ${tool === 'pixel-eraser' ? 'selected' : ''}`} type="button" onClick={() => { setTool('pixel-eraser'); setEraseMenuOpen(false); }}>
+                    <span className="erase-option-icon pixel-option-icon" aria-hidden="true">◌</span><span><strong>Pixel</strong><small>Erase only where you drag</small></span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
           <span className="toolbar-divider" />
           <div className="history-tools">
@@ -174,7 +259,8 @@ function App() {
             <span aria-hidden="true">⌫</span> Clear
           </button>
         </div>
-        <p className="eraser-help">Whole stroke removes an entire mark. Pixel removes ink only where you drag.</p>
+        <p className="eraser-help">Erase whole marks or remove only the ink under the pointer.</p>
+        {storageError && <p className="storage-error" role="alert">Could not save notes in this browser. Storage may be full or unavailable.</p>}
 
         <div className="paper-scroll" aria-label="Writing area">
           <DrawingCanvas

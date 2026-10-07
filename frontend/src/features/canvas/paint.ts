@@ -1,4 +1,4 @@
-import type { Stroke } from '../types/strokes';
+import type { Stroke } from '../../types/strokes';
 
 export type InkBounds = { left: number; top: number; right: number; bottom: number };
 

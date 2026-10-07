@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { interpretRecognition, isSupportedMathExpression } from '../recognition/interpret';
-import type { RecognitionState, Stroke } from '../types/strokes';
+import { interpretRecognition, isSupportedMathExpression } from '../interpret';
+import type { RecognitionState, Stroke } from '../../../types/strokes';
 
 type WorkerMessage =
   | { type: 'progress'; message: string }
